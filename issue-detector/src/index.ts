@@ -1,34 +1,45 @@
 import express from 'express';
 import 'reflect-metadata';
-import { AppDataSource } from './data-source';
+import { AppDataSource,SuiteDataSource  } from './config/data-source';
 import issueRoutes from './routes/issueRoutes';
-import cors from 'cors'; // Import the CORS package
+import dbRoutes from './routes/dataRoutes';
+import cors from 'cors';
+import { connectRabbitMQ } from './rabitMQ/rabbitmq';
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Use CORS middleware
 app.use(cors({
-  origin: '*', // Allows all origins. You can replace '*' with a specific origin if needed
-  methods: 'GET,POST,PUT,DELETE', // Allow specific HTTP methods
-  allowedHeaders: 'Content-Type, Authorization' // Specify allowed headers
+  origin: '*',
+  methods: 'GET,POST,PUT,DELETE',
+  allowedHeaders: 'Content-Type, Authorization'
 }));
 
 app.use(express.json());
 
-// Set up periodic issue detection
-// setInterval(detectIssues, 60000); // Check for issues every minute
-
 // Use issue routes
 app.use('/api', issueRoutes);
+app.use('/api/db', dbRoutes);
 
-AppDataSource.initialize()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log('Connected to PostgreSQL database successfully!');
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error('Error initializing the data source', error);
-  });
+connectRabbitMQ();
+
+async function initializeDataSources() {
+  try {
+      await AppDataSource.initialize();
+      console.log('Main database connection established.');
+
+      await SuiteDataSource.initialize();
+      console.log('Suite database (read-only) connection established.');
+
+      app.listen(PORT, () => {
+          console.log(`Connected to PostgreSQL databases successfully!`);
+          console.log(`Server running on port ${PORT}`);
+      });
+  } catch (error) {
+      console.error('Error during DataSource initialization:', error);
+  }
+}
+
+initializeDataSources();

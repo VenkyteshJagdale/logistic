@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
-import { AppDataSource } from '../data-source';
+import { AppDataSource } from '../config/data-source';
 import { Issue } from '../entity/Issue';
+import { publishToQueue } from '../rabitMQ/rabbitmq';
 
 const issueRepository = AppDataSource.getRepository(Issue);
 
@@ -15,6 +16,7 @@ export const createIssue = async (req: Request, res: Response) => {
       userName,
     });
     await issueRepository.save(newIssue);
+    await publishToQueue('taskQueue', newIssue);
     return res.status(201).json(newIssue);
   } catch (error) {
     return res.status(500).json({ message: 'Error creating issue', error });
@@ -70,7 +72,6 @@ export const getAllIssues = async (req: Request, res: Response) => {
   };
   
   
-
 // Update an issue by issueId
 export const updateIssue = async (req: Request, res: Response) => {
   try {
@@ -80,6 +81,7 @@ export const updateIssue = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Issue not found' });
     }
     const updatedIssue = await issueRepository.save({ ...issue, ...req.body });
+    await publishToQueue('taskQueue', updatedIssue);
     return res.status(200).json(updatedIssue);
   } catch (error) {
     return res.status(500).json({ message: 'Error updating issue', error });
@@ -100,3 +102,5 @@ export const deleteIssue = async (req: Request, res: Response) => {
     return res.status(500).json({ message: 'Error deleting issue', error });
   }
 };
+
+
